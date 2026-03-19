@@ -48,23 +48,31 @@ func (p *Pool) handleDecline(mac string) {
 	p.DeclinedIPs[ipStr] = true
 }
 
-func (p *Pool) handleClientRequest(mac string, cfg *config.Config) net.IP {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	lease, ok := p.Leases[mac]
-	if ok {
-		if lease.ExpiredAt.After(time.Now()) {
-			log.Printf("[DHCP Pool] 기존 임대 반환: MAC=%s, IP=%s (만료: %s)", mac, lease.Address, lease.ExpiredAt.Format(time.RFC3339))
-			return lease.Address
-		} else {
-			log.Printf("[DHCP Pool] 임대 만료 제거: MAC=%s, IP=%s", mac, lease.Address)
+func (p *Pool) cleanExpiredLeases() {
+	now := time.Now()
+	for mac, lease := range p.Leases {
+		if lease.ExpiredAt.Before(now) {
+			log.Printf("[DHCP Pool] 만료 임대 정리: MAC=%s, IP=%s", mac, lease.Address)
 			delete(p.Leases, mac)
 			delete(p.IPToMAC, lease.Address.String())
 		}
 	}
+}
 
-	for curr := p.RangeStart; bytes.Compare(curr, p.RangeEnd) <= 0; curr = GetNextIP(curr) {
+func (p *Pool) handleClientRequest(mac string, cfg *config.Config) net.IP {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// 만료된 임대 일괄 정리
+	p.cleanExpiredLeases()
+
+	lease, ok := p.Leases[mac]
+	if ok {
+		log.Printf("[DHCP Pool] 기존 임대 반환: MAC=%s, IP=%s (만료: %s)", mac, lease.Address, lease.ExpiredAt.Format(time.RFC3339))
+		return lease.Address
+	}
+
+	for curr := p.RangeStart; curr != nil && bytes.Compare(curr, p.RangeEnd) <= 0; curr = GetNextIP(curr) {
 		if _, ok := p.IPToMAC[curr.String()]; ok {
 			continue
 		}
@@ -100,6 +108,9 @@ func GetNextIP(ip net.IP) net.IP {
 	}
 	for i := 2; i >= 0; i-- {
 		if next[i] >= 255 {
+			if i == 0 {
+				return nil
+			}
 			next[i-1]++
 			next[i] = 0
 		}
