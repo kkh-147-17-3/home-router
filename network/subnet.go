@@ -3,6 +3,7 @@ package network
 import (
 	"github.com/vishvananda/netlink"
 	"home-router/internal/iface"
+	"golang.org/x/sys/unix"
 )
 
 func SetIP(mac string, cidr string) error {
@@ -18,7 +19,11 @@ func SetIP(mac string, cidr string) error {
 
 	err = netlink.AddrAdd(link, ip)
 	if err != nil {
-		return err
+		if err == unix.EEXIST {
+			netlink.AddrReplace(link, ip)
+		} else {
+			return err
+		}
 	}
 
 	return netlink.LinkSetUp(link)
