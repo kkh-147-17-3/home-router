@@ -2,6 +2,7 @@ package dns
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/miekg/dns"
@@ -17,8 +18,8 @@ type Cache struct {
 	maxSize int
 	mu      sync.RWMutex
 
-	hits   uint64
-	misses uint64
+	hits   atomic.Uint64
+	misses atomic.Uint64
 }
 
 func NewCache(maxSize int) *Cache {
@@ -39,24 +40,19 @@ func (c *Cache) Get(name string, qtype uint16) *dns.Msg {
 	c.mu.RUnlock()
 
 	if !ok {
-		c.mu.Lock()
-		c.misses++
-		c.mu.Unlock()
+		c.misses.Add(1)
 		return nil
 	}
 
 	if time.Now().After(entry.expiresAt) {
 		c.mu.Lock()
 		delete(c.entries, key)
-		c.misses++
 		c.mu.Unlock()
+		c.misses.Add(1)
 		return nil
 	}
 
-	c.mu.Lock()
-	c.hits++
-	c.mu.Unlock()
-
+	c.hits.Add(1)
 	return entry.msg.Copy()
 }
 
@@ -93,20 +89,23 @@ func (c *Cache) Put(name string, qtype uint16, msg *dns.Msg) {
 }
 
 func (c *Cache) Stats() CacheStats {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	total := c.hits + c.misses
+	hits := c.hits.Load()
+	misses := c.misses.Load()
+	total := hits + misses
 	var hitRatio float64
 	if total > 0 {
-		hitRatio = float64(c.hits) / float64(total) * 100
+		hitRatio = float64(hits) / float64(total) * 100
 	}
 
+	c.mu.RLock()
+	size := len(c.entries)
+	c.mu.RUnlock()
+
 	return CacheStats{
-		Size:     len(c.entries),
+		Size:     size,
 		MaxSize:  c.maxSize,
-		Hits:     c.hits,
-		Misses:   c.misses,
+		Hits:     hits,
+		Misses:   misses,
 		HitRatio: hitRatio,
 	}
 }

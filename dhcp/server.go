@@ -28,6 +28,9 @@ func RunServer(ctx context.Context, iface string, pool *Pool, cfg *config.Config
 		case dhcpv4.MessageTypeDecline:
 			pool.handleDecline(macAddress.String())
 			return
+		case dhcpv4.MessageTypeRelease:
+			pool.handleRelease(macAddress.String())
+			return
 		default:
 			log.Printf("[DHCP Server] 무시하는 메시지 타입: %s", msgType)
 			return

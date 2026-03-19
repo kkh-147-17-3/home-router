@@ -44,6 +44,7 @@ func main() {
 		net.ParseIP(cfg.Dhcp.Server.RangeEnd),
 		leaseFile,
 		cfg.Dhcp.StaticLeases,
+		lanIface.Attrs().Name,
 	)
 
 	log.Println("[3/6] WAN 인터페이스 찾는 중...")

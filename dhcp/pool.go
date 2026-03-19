@@ -6,10 +6,13 @@ import (
 	"home-router/internal/config"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/mdlayher/arp"
 )
 
 type IPLease struct {
@@ -24,6 +27,12 @@ type leaseRecord struct {
 	ExpiredAt time.Time `json:"expired_at"`
 }
 
+// leaseFile 전체 구조 (임대 + 충돌 IP)
+type leaseFileData struct {
+	Leases      []leaseRecord `json:"leases"`
+	DeclinedIPs []string      `json:"declined_ips,omitempty"`
+}
+
 type Pool struct {
 	RangeStart   net.IP
 	RangeEnd     net.IP
@@ -32,10 +41,11 @@ type Pool struct {
 	DeclinedIPs  map[string]bool
 	StaticLeases map[string]net.IP // MAC → 고정 IP
 	leaseFile    string
+	lanIface     string
 	mu           sync.RWMutex
 }
 
-func NewPool(rangeStart, rangeEnd net.IP, leaseFile string, staticLeases []config.StaticLeaseEntry) *Pool {
+func NewPool(rangeStart, rangeEnd net.IP, leaseFile string, staticLeases []config.StaticLeaseEntry, lanIface string) *Pool {
 	p := &Pool{
 		RangeStart:   rangeStart.To4(),
 		RangeEnd:     rangeEnd.To4(),
@@ -44,6 +54,7 @@ func NewPool(rangeStart, rangeEnd net.IP, leaseFile string, staticLeases []confi
 		DeclinedIPs:  make(map[string]bool),
 		StaticLeases: make(map[string]net.IP),
 		leaseFile:    leaseFile,
+		lanIface:     lanIface,
 	}
 
 	// Static lease 등록
@@ -64,6 +75,21 @@ func NewPool(rangeStart, rangeEnd net.IP, leaseFile string, staticLeases []confi
 	}
 
 	return p
+}
+
+func (p *Pool) handleRelease(mac string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	lease, ok := p.Leases[mac]
+	if !ok {
+		return
+	}
+	ipStr := lease.Address.String()
+	log.Printf("[DHCP Pool] RELEASE 처리: MAC=%s, IP=%s → 임대 해제", mac, ipStr)
+	delete(p.Leases, mac)
+	delete(p.IPToMAC, ipStr)
+	p.saveLeases()
 }
 
 func (p *Pool) handleDecline(mac string) {
@@ -111,19 +137,29 @@ func (p *Pool) handleClientRequest(mac string, cfg *config.Config) net.IP {
 		return staticIP
 	}
 
-	// 2. 기존 임대 확인
+	// 2. 기존 임대 확인 → 만료시간 갱신
 	lease, ok := p.Leases[mac]
 	if ok {
+		lease.ExpiredAt = time.Now().Add(time.Duration(cfg.Dhcp.Server.LeaseTime) * time.Second)
+		p.Leases[mac] = lease
 		log.Printf("[DHCP Pool] 기존 임대 반환: MAC=%s, IP=%s (만료: %s)", mac, lease.Address, lease.ExpiredAt.Format(time.RFC3339))
+		p.saveLeases()
 		return lease.Address
 	}
 
-	// 3. 새 IP 동적 할당
+	// 3. 새 IP 동적 할당 (ARP 프로브로 실제 사용 여부 확인)
+	arpClient := p.newARPClient()
+	if arpClient != nil {
+		defer arpClient.Close()
+	}
 	for curr := p.RangeStart; curr != nil && bytes.Compare(curr, p.RangeEnd) <= 0; curr = GetNextIP(curr) {
 		if _, ok := p.IPToMAC[curr.String()]; ok {
 			continue
 		}
 		if p.DeclinedIPs[curr.String()] {
+			continue
+		}
+		if arpClient != nil && p.isIPInUse(arpClient, curr) {
 			continue
 		}
 		expiredAt := time.Now().Add(time.Duration(cfg.Dhcp.Server.LeaseTime) * time.Second)
@@ -154,16 +190,21 @@ func (p *Pool) loadLeases() {
 		return
 	}
 
-	var records []leaseRecord
-	if err := json.Unmarshal(data, &records); err != nil {
-		log.Printf("[DHCP Pool] 임대 파일 파싱 실패: %v", err)
-		return
+	// 새 형식(leaseFileData) 시도
+	var fileData leaseFileData
+	if err := json.Unmarshal(data, &fileData); err != nil {
+		// 구 형식([]leaseRecord) 호환
+		var records []leaseRecord
+		if err2 := json.Unmarshal(data, &records); err2 != nil {
+			log.Printf("[DHCP Pool] 임대 파일 파싱 실패: %v", err)
+			return
+		}
+		fileData.Leases = records
 	}
 
 	now := time.Now()
 	restored := 0
-	for _, r := range records {
-		// 만료된 임대는 건너뛰기
+	for _, r := range fileData.Leases {
 		if r.ExpiredAt.Before(now) {
 			continue
 		}
@@ -171,7 +212,6 @@ func (p *Pool) loadLeases() {
 		if ip == nil {
 			continue
 		}
-		// 고정 임대로 이미 등록된 IP는 건너뛰기
 		if _, isStatic := p.StaticLeases[r.MAC]; isStatic {
 			continue
 		}
@@ -180,7 +220,11 @@ func (p *Pool) loadLeases() {
 		restored++
 	}
 
-	log.Printf("[DHCP Pool] 임대 복원 완료: %d개 (파일: %s)", restored, p.leaseFile)
+	for _, ipStr := range fileData.DeclinedIPs {
+		p.DeclinedIPs[ipStr] = true
+	}
+
+	log.Printf("[DHCP Pool] 임대 복원 완료: %d개, 충돌 IP: %d개 (파일: %s)", restored, len(fileData.DeclinedIPs), p.leaseFile)
 }
 
 // saveLeases 는 현재 임대 정보를 JSON 파일에 저장합니다.
@@ -192,7 +236,6 @@ func (p *Pool) saveLeases() {
 
 	records := make([]leaseRecord, 0, len(p.Leases))
 	for mac, lease := range p.Leases {
-		// 고정 임대는 파일에 저장하지 않음 (config에서 관리)
 		if _, isStatic := p.StaticLeases[mac]; isStatic {
 			continue
 		}
@@ -203,13 +246,22 @@ func (p *Pool) saveLeases() {
 		})
 	}
 
-	data, err := json.MarshalIndent(records, "", "  ")
+	declinedIPs := make([]string, 0, len(p.DeclinedIPs))
+	for ip := range p.DeclinedIPs {
+		declinedIPs = append(declinedIPs, ip)
+	}
+
+	fileData := leaseFileData{
+		Leases:      records,
+		DeclinedIPs: declinedIPs,
+	}
+
+	data, err := json.MarshalIndent(fileData, "", "  ")
 	if err != nil {
 		log.Printf("[DHCP Pool] 임대 파일 직렬화 실패: %v", err)
 		return
 	}
 
-	// 디렉토리가 없으면 생성
 	dir := filepath.Dir(p.leaseFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Printf("[DHCP Pool] 임대 디렉토리 생성 실패: %v", err)
@@ -219,6 +271,37 @@ func (p *Pool) saveLeases() {
 	if err := os.WriteFile(p.leaseFile, data, 0644); err != nil {
 		log.Printf("[DHCP Pool] 임대 파일 저장 실패: %v", err)
 	}
+}
+
+func (p *Pool) newARPClient() *arp.Client {
+	if p.lanIface == "" {
+		return nil
+	}
+	iface, err := net.InterfaceByName(p.lanIface)
+	if err != nil {
+		log.Printf("[DHCP Pool] ARP 클라이언트 생성 실패 (인터페이스): %v", err)
+		return nil
+	}
+	client, err := arp.Dial(iface)
+	if err != nil {
+		log.Printf("[DHCP Pool] ARP 클라이언트 생성 실패: %v", err)
+		return nil
+	}
+	return client
+}
+
+func (p *Pool) isIPInUse(client *arp.Client, ip net.IP) bool {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	_ = client.SetDeadline(time.Now().Add(500 * time.Millisecond))
+	hwAddr, err := client.Resolve(addr)
+	if err != nil {
+		return false
+	}
+	log.Printf("[DHCP Pool] ARP 프로브: IP=%s 사용 중 (MAC=%s), 건너뜀", ip, hwAddr)
+	return true
 }
 
 func GetNextIP(ip net.IP) net.IP {
