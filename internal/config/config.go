@@ -17,6 +17,14 @@ type Config struct {
 		}
 	}
 
+	PortForwarding []struct {
+		Name         string `yaml:"name"`
+		Protocol     string `yaml:"protocol"`
+		ExternalPort int    `yaml:"external_port"`
+		InternalIP   string `yaml:"internal_ip"`
+		InternalPort int    `yaml:"internal_port"`
+	} `yaml:"port_forwarding"`
+
 	Dhcp struct {
 		Server struct {
 			RangeStart string `yaml:"range_start"`
