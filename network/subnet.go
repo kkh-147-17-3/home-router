@@ -18,7 +18,7 @@ func SetIP(mac string, cidr string) error {
 		return err
 	}
 
-	// 다른 인터페이스에 같은 IP가 남아있으면 제거 (lo 포함)
+	// 현재 시스템의 다른 인터페이스에 같은 IP가 남아있으면 제거 (lo 포함)
 	allLinks, _ := netlink.LinkList()
 	for _, l := range allLinks {
 		if l.Attrs().Index == link.Attrs().Index {
