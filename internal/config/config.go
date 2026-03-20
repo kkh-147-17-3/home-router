@@ -46,6 +46,12 @@ type Config struct {
 		CacheSize  int      `yaml:"cache_size"`
 		LogSize    int      `yaml:"log_size"`
 	}
+
+	Web struct {
+		Enabled      bool   `yaml:"enabled"`
+		Listen       string `yaml:"listen"`
+		PasswordHash string `yaml:"password_hash"`
+	} `yaml:"web"`
 }
 
 type StaticLeaseEntry struct {

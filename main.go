@@ -3,12 +3,15 @@ package main
 import (
 	"fmt"
 	"golang.org/x/net/context"
+	"home-router/api"
 	"home-router/dhcp"
 	hdns "home-router/dns"
 	"home-router/internal/config"
 	"home-router/internal/iface"
 	"home-router/nat"
 	"home-router/network"
+	"home-router/web"
+	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -18,12 +21,12 @@ import (
 
 func main() {
 	// 1. config 읽기
-	log.Println("[1/6] 설정 파일 읽는 중...")
+	log.Println("[1/7] 설정 파일 읽는 중...")
 	cfg := config.GetConfig()
-	log.Println("[1/6] 설정 파일 로드 완료")
+	log.Println("[1/7] 설정 파일 로드 완료")
 
 	// 2. LAN IP 설정
-	log.Println("[2/6] LAN 인터페이스 설정 중...")
+	log.Println("[2/7] LAN 인터페이스 설정 중...")
 	lanIface, err := iface.FindInterfaceByMac(cfg.Network.Lan.MacAddress)
 	if err != nil {
 		log.Fatalf("LAN 인터페이스를 찾을 수 없습니다: %v", err)
@@ -33,7 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("LAN IP 설정에 실패했습니다: %v", err)
 	}
-	log.Printf("[2/6] LAN 설정 완료 (인터페이스: %s, 서브넷: %s)", lanIface.Attrs().Name, cfg.Network.Lan.Subnet)
+	log.Printf("[2/7] LAN 설정 완료 (인터페이스: %s, 서브넷: %s)", lanIface.Attrs().Name, cfg.Network.Lan.Subnet)
 
 	leaseFile := cfg.Dhcp.LeaseFile
 	if leaseFile == "" {
@@ -47,19 +50,19 @@ func main() {
 		lanIface.Attrs().Name,
 	)
 
-	log.Println("[3/6] WAN 인터페이스 찾는 중...")
+	log.Println("[3/7] WAN 인터페이스 찾는 중...")
 	wanIface, err := iface.FindInterfaceByMac(cfg.Network.Wan.MacAddress)
 	if err != nil {
 		log.Fatalf("WAN 인터페이스를 찾을 수 없습니다: %v", err)
 	}
 
 	// 3. NAT 활성화
-	log.Printf("[3/6] NAT 활성화 중 (인터페이스: %s)...", wanIface.Attrs().Name)
+	log.Printf("[3/7] NAT 활성화 중 (인터페이스: %s)...", wanIface.Attrs().Name)
 	err = nat.Enable(wanIface.Attrs().Name, lanIface.Attrs().Name)
 	if err != nil {
 		log.Fatalf("NAT 활성화에 실패했습니다: %v", err)
 	}
-	log.Println("[3/6] NAT 활성화 완료")
+	log.Println("[3/7] NAT 활성화 완료")
 
 	// 포트포워딩 설정 (WAN IP 미확보 상태 — 외부 트래픽만)
 	for _, pf := range cfg.PortForwarding {
@@ -90,7 +93,7 @@ func main() {
 	var dnsCache *hdns.Cache
 	var dnsQueryLog *hdns.QueryLog
 	if cfg.Dns.Enabled {
-		log.Println("[4/6] DNS 서버 시작 중...")
+		log.Println("[4/7] DNS 서버 시작 중...")
 		dnsBlocker = hdns.NewBlocker(cfg.Dns.Blocklists, cfg.Dns.Whitelist)
 		dnsCache = hdns.NewCache(cfg.Dns.CacheSize)
 		dnsQueryLog = hdns.NewQueryLog(cfg.Dns.LogSize)
@@ -108,11 +111,11 @@ func main() {
 
 		// DHCP 클라이언트에 라우터를 DNS로 광고
 		cfg.Dhcp.Server.Dns = cfg.Dhcp.Server.Gateway
-		log.Printf("[4/6] DNS 서버 시작 완료 (%s, 차단 도메인: %d개)", listenAddr, dnsBlocker.TotalDomains)
+		log.Printf("[4/7] DNS 서버 시작 완료 (%s, 차단 도메인: %d개)", listenAddr, dnsBlocker.TotalDomains)
 	}
 
 	// 5. DHCP 서버 시작 (인터페이스 복구 자동 재시작)
-	log.Printf("[5/6] DHCP 서버 시작 중 (인터페이스: %s, 범위: %s ~ %s)...", lanIface.Attrs().Name, cfg.Dhcp.Server.RangeStart, cfg.Dhcp.Server.RangeEnd)
+	log.Printf("[5/7] DHCP 서버 시작 중 (인터페이스: %s, 범위: %s ~ %s)...", lanIface.Attrs().Name, cfg.Dhcp.Server.RangeStart, cfg.Dhcp.Server.RangeEnd)
 	go func() {
 		lanName := lanIface.Attrs().Name
 		for {
@@ -134,15 +137,39 @@ func main() {
 			log.Printf("[DHCP Server] 인터페이스 복구됨 (%s), 재시작", lanName)
 		}
 	}()
-	log.Println("[5/6] DHCP 서버 시작 완료")
+	log.Println("[5/7] DHCP 서버 시작 완료")
 
-	// 6. DHCP 클라이언트 시작 (WAN IP 받기)
-	log.Printf("[6/6] DHCP 클라이언트 시작 중 (인터페이스: %s)...", wanIface.Attrs().Name)
+	// 6. Web UI 서버 시작
+	var apiServer *api.Server
+	if cfg.Web.Enabled {
+		log.Println("[6/7] Web UI 서버 시작 중...")
+		listen := cfg.Web.Listen
+		if listen == "" {
+			listen = ":8080"
+		}
+
+		var staticFS fs.FS
+		distFS, err := fs.Sub(web.DistFS, "dist")
+		if err == nil {
+			// dist 디렉토리 존재 여부 확인
+			if _, statErr := fs.Stat(distFS, "index.html"); statErr == nil {
+				staticFS = distFS
+			}
+		}
+
+		apiServer = api.NewServer(cfg, pool, dnsCache, dnsQueryLog, dnsBlocker,
+			wanIface.Attrs().Name, lanIface.Attrs().Name, staticFS)
+		go apiServer.Start(ctx, listen)
+		log.Printf("[6/7] Web UI 서버 시작 완료 (%s)", listen)
+	}
+
+	// 7. DHCP 클라이언트 시작 (WAN IP 받기)
+	log.Printf("[7/7] DHCP 클라이언트 시작 중 (인터페이스: %s)...", wanIface.Attrs().Name)
 	client, err := dhcp.RunClient(wanIface.Attrs().Name, ctx)
 	if err != nil {
 		log.Fatalf("DHCP 클라이언트 시작에 실패했습니다: %v", err)
 	}
-	log.Println("[6/6] DHCP 클라이언트 시작 완료, WAN IP 대기 중...")
+	log.Println("[7/7] DHCP 클라이언트 시작 완료, WAN IP 대기 중...")
 
 	var currentWanIP string
 	for lease := range client {
@@ -176,12 +203,12 @@ func main() {
 
 		err = nat.Disable(wanIface.Attrs().Name, lanIface.Attrs().Name)
 		if err != nil {
-			log.Fatalf("NAT 갱신에 실패했습니다. %w", err)
+			log.Fatalf("NAT 갱신에 실패했습니다. %v", err)
 		}
 
 		err = nat.Enable(wanIface.Attrs().Name, lanIface.Attrs().Name)
 		if err != nil {
-			log.Fatalf("NAT 갱신에 실패했습니다. %w", err)
+			log.Fatalf("NAT 갱신에 실패했습니다. %v", err)
 		}
 		log.Printf("NAT 갱신 완료 (인터페이스: %s)", wanIface.Attrs().Name)
 
@@ -197,6 +224,12 @@ func main() {
 				log.Printf("포트포워딩 갱신 실패: %v", err)
 			}
 		}
+
+		// Web UI에 WAN IP 전달
+		if apiServer != nil {
+			apiServer.SetWANIP(assignedIP.String())
+		}
+
 		currentWanIP = cidr
 	}
 }

@@ -16,11 +16,13 @@ type QueryEntry struct {
 }
 
 type QueryLog struct {
-	entries []QueryEntry
-	pos     int
-	count   int
-	maxSize int
-	mu      sync.Mutex
+	entries     []QueryEntry
+	pos         int
+	count       int
+	maxSize     int
+	mu          sync.Mutex
+	subscribers map[chan QueryEntry]struct{}
+	subMu       sync.RWMutex
 }
 
 func NewQueryLog(maxSize int) *QueryLog {
@@ -28,20 +30,47 @@ func NewQueryLog(maxSize int) *QueryLog {
 		maxSize = 10000
 	}
 	return &QueryLog{
-		entries: make([]QueryEntry, maxSize),
-		maxSize: maxSize,
+		entries:     make([]QueryEntry, maxSize),
+		maxSize:     maxSize,
+		subscribers: make(map[chan QueryEntry]struct{}),
 	}
 }
 
 func (q *QueryLog) Add(entry QueryEntry) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
-
 	q.entries[q.pos] = entry
 	q.pos = (q.pos + 1) % q.maxSize
 	if q.count < q.maxSize {
 		q.count++
 	}
+	q.mu.Unlock()
+
+	// 구독자에게 브로드캐스트
+	q.subMu.RLock()
+	for ch := range q.subscribers {
+		select {
+		case ch <- entry:
+		default: // 버퍼 가득 차면 skip (느린 클라이언트 보호)
+		}
+	}
+	q.subMu.RUnlock()
+}
+
+// Subscribe 는 새 쿼리 엔트리를 수신하는 채널을 생성합니다.
+func (q *QueryLog) Subscribe() chan QueryEntry {
+	ch := make(chan QueryEntry, 64)
+	q.subMu.Lock()
+	q.subscribers[ch] = struct{}{}
+	q.subMu.Unlock()
+	return ch
+}
+
+// Unsubscribe 는 구독을 해제합니다.
+func (q *QueryLog) Unsubscribe(ch chan QueryEntry) {
+	q.subMu.Lock()
+	delete(q.subscribers, ch)
+	q.subMu.Unlock()
+	close(ch)
 }
 
 // Recent 는 가장 최근 n개의 쿼리를 최신순으로 반환합니다.

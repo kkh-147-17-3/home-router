@@ -304,6 +304,95 @@ func (p *Pool) isIPInUse(client *arp.Client, ip net.IP) bool {
 	return true
 }
 
+// LeaseInfo 는 API 응답용 임대 정보 구조체
+type LeaseInfo struct {
+	MAC       string    `json:"mac"`
+	IP        string    `json:"ip"`
+	Hostname  string    `json:"hostname,omitempty"`
+	ExpiredAt time.Time `json:"expired_at"`
+	Static    bool      `json:"static"`
+}
+
+// PoolInfoResponse 는 풀 설정 정보 응답 구조체
+type PoolInfoResponse struct {
+	RangeStart    string `json:"range_start"`
+	RangeEnd      string `json:"range_end"`
+	TotalLeases   int    `json:"total_leases"`
+	StaticLeases  int    `json:"static_leases"`
+	DeclinedIPs   int    `json:"declined_ips"`
+}
+
+// ActiveLeases 는 전체 임대 스냅샷을 반환합니다.
+func (p *Pool) ActiveLeases() []LeaseInfo {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	result := make([]LeaseInfo, 0, len(p.Leases))
+	for mac, lease := range p.Leases {
+		_, isStatic := p.StaticLeases[mac]
+		result = append(result, LeaseInfo{
+			MAC:       mac,
+			IP:        lease.Address.String(),
+			ExpiredAt: lease.ExpiredAt,
+			Static:    isStatic,
+		})
+	}
+	return result
+}
+
+// PoolInfo 는 풀 범위, 카운트 정보를 반환합니다.
+func (p *Pool) PoolInfo() PoolInfoResponse {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return PoolInfoResponse{
+		RangeStart:   p.RangeStart.String(),
+		RangeEnd:     p.RangeEnd.String(),
+		TotalLeases:  len(p.Leases),
+		StaticLeases: len(p.StaticLeases),
+		DeclinedIPs:  len(p.DeclinedIPs),
+	}
+}
+
+// StaticLeaseList 는 정적 임대 목록을 반환합니다.
+func (p *Pool) StaticLeaseList() []LeaseInfo {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	result := make([]LeaseInfo, 0, len(p.StaticLeases))
+	for mac, ip := range p.StaticLeases {
+		result = append(result, LeaseInfo{
+			MAC:    mac,
+			IP:     ip.String(),
+			Static: true,
+		})
+	}
+	return result
+}
+
+// AddStaticLease 는 정적 임대를 추가합니다.
+func (p *Pool) AddStaticLease(name, mac string, ip net.IP) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.StaticLeases[mac] = ip.To4()
+	p.IPToMAC[ip.String()] = mac
+	log.Printf("[DHCP Pool] 정적 임대 추가: %s → %s (%s)", mac, ip, name)
+}
+
+// RemoveStaticLease 는 정적 임대를 삭제합니다.
+func (p *Pool) RemoveStaticLease(mac string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if ip, ok := p.StaticLeases[mac]; ok {
+		delete(p.IPToMAC, ip.String())
+		delete(p.StaticLeases, mac)
+		delete(p.Leases, mac)
+		log.Printf("[DHCP Pool] 정적 임대 삭제: %s", mac)
+	}
+}
+
 func GetNextIP(ip net.IP) net.IP {
 	src := ip.To4()
 	next := make(net.IP, 4)

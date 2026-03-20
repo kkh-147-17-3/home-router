@@ -116,6 +116,39 @@ type BlockerStats struct {
 	Whitelist    int `json:"whitelist"`
 }
 
+// AddWhitelist 는 화이트리스트에 도메인을 추가합니다.
+func (b *Blocker) AddWhitelist(domain string) {
+	domain = normalizeDomain(domain)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.whitelist[domain] = true
+}
+
+// RemoveWhitelist 는 화이트리스트에서 도메인을 삭제합니다.
+func (b *Blocker) RemoveWhitelist(domain string) {
+	domain = normalizeDomain(domain)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.whitelist, domain)
+}
+
+// WhitelistEntries 는 화이트리스트 도메인 목록을 반환합니다.
+func (b *Blocker) WhitelistEntries() []string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	result := make([]string, 0, len(b.whitelist))
+	for domain := range b.whitelist {
+		result = append(result, domain)
+	}
+	return result
+}
+
+// BlocklistSources 는 차단 목록 소스 URL을 반환합니다.
+func (b *Blocker) BlocklistSources() []string {
+	return b.sources
+}
+
 func fetchURL(url string) (io.ReadCloser, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(url)

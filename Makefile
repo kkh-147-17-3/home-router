@@ -1,9 +1,18 @@
-.PHONY: build deploy restart stop status
+.PHONY: build build-web deploy restart stop status dev-web dev-api
 
 export PATH := /usr/local/go/bin:$(PATH)
 
-build:
+build-web:
+	cd web && npm ci && npm run build
+
+build: build-web
 	go build -o home-router .
+
+dev-web:
+	cd web && npm run dev
+
+dev-api:
+	go run .
 
 deploy: build
 	sudo systemctl stop home-router || true
