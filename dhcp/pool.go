@@ -17,6 +17,7 @@ import (
 
 type IPLease struct {
 	Address   net.IP
+	Hostname  string
 	ExpiredAt time.Time
 }
 
@@ -24,13 +25,14 @@ type IPLease struct {
 type leaseRecord struct {
 	MAC       string    `json:"mac"`
 	IP        string    `json:"ip"`
-	ExpiredAt time.Time `json:"expired_at"`
+	Hostname  string    `json:"hostname,omitempty"`
+	ExpiredAt time.Time `json:"expiredAt"`
 }
 
 // leaseFile 전체 구조 (임대 + 충돌 IP)
 type leaseFileData struct {
 	Leases      []leaseRecord `json:"leases"`
-	DeclinedIPs []string      `json:"declined_ips,omitempty"`
+	DeclinedIPs []string      `json:"declinedIps,omitempty"`
 }
 
 type Pool struct {
@@ -119,7 +121,7 @@ func (p *Pool) cleanExpiredLeases() {
 	}
 }
 
-func (p *Pool) handleClientRequest(mac string, cfg *config.Config) net.IP {
+func (p *Pool) handleClientRequest(mac string, hostname string, cfg *config.Config) net.IP {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -130,7 +132,7 @@ func (p *Pool) handleClientRequest(mac string, cfg *config.Config) net.IP {
 	if staticIP, ok := p.StaticLeases[mac]; ok {
 		// 고정 임대는 만료 없이 최대 lease time으로 설정
 		expiredAt := time.Now().Add(time.Duration(cfg.Dhcp.Server.LeaseTime) * time.Second)
-		p.Leases[mac] = IPLease{staticIP, expiredAt}
+		p.Leases[mac] = IPLease{staticIP, hostname, expiredAt}
 		p.IPToMAC[staticIP.String()] = mac
 		log.Printf("[DHCP Pool] 고정 임대 반환: MAC=%s, IP=%s", mac, staticIP)
 		p.saveLeases()
@@ -141,6 +143,9 @@ func (p *Pool) handleClientRequest(mac string, cfg *config.Config) net.IP {
 	lease, ok := p.Leases[mac]
 	if ok {
 		lease.ExpiredAt = time.Now().Add(time.Duration(cfg.Dhcp.Server.LeaseTime) * time.Second)
+		if hostname != "" {
+			lease.Hostname = hostname
+		}
 		p.Leases[mac] = lease
 		log.Printf("[DHCP Pool] 기존 임대 반환: MAC=%s, IP=%s (만료: %s)", mac, lease.Address, lease.ExpiredAt.Format(time.RFC3339))
 		p.saveLeases()
@@ -167,6 +172,7 @@ func (p *Pool) handleClientRequest(mac string, cfg *config.Config) net.IP {
 		copy(allocatedIP, curr)
 		p.Leases[mac] = IPLease{
 			allocatedIP,
+			hostname,
 			expiredAt,
 		}
 		p.IPToMAC[curr.String()] = mac
@@ -190,7 +196,7 @@ func (p *Pool) loadLeases() {
 		return
 	}
 
-	// 새 형식(leaseFileData) 시도
+	// 새 형식(leaseFileData) 시도 — 구 형식(snake_case) 호환 포함
 	var fileData leaseFileData
 	if err := json.Unmarshal(data, &fileData); err != nil {
 		// 구 형식([]leaseRecord) 호환
@@ -200,6 +206,29 @@ func (p *Pool) loadLeases() {
 			return
 		}
 		fileData.Leases = records
+	}
+
+	// snake_case → camelCase 마이그레이션: expired_at이 있으면 변환 후 다시 파싱
+	if len(fileData.Leases) > 0 && fileData.Leases[0].ExpiredAt.IsZero() {
+		type legacyRecord struct {
+			MAC       string    `json:"mac"`
+			IP        string    `json:"ip"`
+			Hostname  string    `json:"hostname,omitempty"`
+			ExpiredAt time.Time `json:"expired_at"`
+		}
+		type legacyFile struct {
+			Leases      []legacyRecord `json:"leases"`
+			DeclinedIPs []string       `json:"declined_ips,omitempty"`
+		}
+		var legacy legacyFile
+		if err := json.Unmarshal(data, &legacy); err == nil && len(legacy.Leases) > 0 {
+			fileData.Leases = make([]leaseRecord, len(legacy.Leases))
+			for i, l := range legacy.Leases {
+				fileData.Leases[i] = leaseRecord{MAC: l.MAC, IP: l.IP, Hostname: l.Hostname, ExpiredAt: l.ExpiredAt}
+			}
+			fileData.DeclinedIPs = legacy.DeclinedIPs
+			log.Printf("[DHCP Pool] 구 형식(snake_case) 임대 파일 마이그레이션 완료")
+		}
 	}
 
 	now := time.Now()
@@ -215,7 +244,7 @@ func (p *Pool) loadLeases() {
 		if _, isStatic := p.StaticLeases[r.MAC]; isStatic {
 			continue
 		}
-		p.Leases[r.MAC] = IPLease{Address: ip, ExpiredAt: r.ExpiredAt}
+		p.Leases[r.MAC] = IPLease{Address: ip, Hostname: r.Hostname, ExpiredAt: r.ExpiredAt}
 		p.IPToMAC[ip.String()] = r.MAC
 		restored++
 	}
@@ -242,6 +271,7 @@ func (p *Pool) saveLeases() {
 		records = append(records, leaseRecord{
 			MAC:       mac,
 			IP:        lease.Address.String(),
+			Hostname:  lease.Hostname,
 			ExpiredAt: lease.ExpiredAt,
 		})
 	}
@@ -309,17 +339,17 @@ type LeaseInfo struct {
 	MAC       string    `json:"mac"`
 	IP        string    `json:"ip"`
 	Hostname  string    `json:"hostname,omitempty"`
-	ExpiredAt time.Time `json:"expired_at"`
+	ExpiredAt time.Time `json:"expiredAt"`
 	Static    bool      `json:"static"`
 }
 
 // PoolInfoResponse 는 풀 설정 정보 응답 구조체
 type PoolInfoResponse struct {
-	RangeStart    string `json:"range_start"`
-	RangeEnd      string `json:"range_end"`
-	TotalLeases   int    `json:"total_leases"`
-	StaticLeases  int    `json:"static_leases"`
-	DeclinedIPs   int    `json:"declined_ips"`
+	RangeStart    string `json:"rangeStart"`
+	RangeEnd      string `json:"rangeEnd"`
+	TotalLeases   int    `json:"totalLeases"`
+	StaticLeases  int    `json:"staticLeases"`
+	DeclinedIPs   int    `json:"declinedIps"`
 }
 
 // ActiveLeases 는 전체 임대 스냅샷을 반환합니다.
@@ -333,6 +363,7 @@ func (p *Pool) ActiveLeases() []LeaseInfo {
 		result = append(result, LeaseInfo{
 			MAC:       mac,
 			IP:        lease.Address.String(),
+			Hostname:  lease.Hostname,
 			ExpiredAt: lease.ExpiredAt,
 			Static:    isStatic,
 		})

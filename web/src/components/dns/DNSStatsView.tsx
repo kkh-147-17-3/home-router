@@ -17,16 +17,16 @@ export default function DNSStatsView({ stats, cacheStats, blockerStats }: Props)
     <div>
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={6}>
-          <Card><Statistic title="Total Queries (24h)" value={stats.total_queries} /></Card>
+          <Card><Statistic title="Total Queries (24h)" value={stats.totalQueries} /></Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card><Statistic title="Blocked" value={stats.blocked_queries} valueStyle={{ color: '#ff4d4f' }} /></Card>
+          <Card><Statistic title="Blocked" value={stats.blockedQueries} valueStyle={{ color: '#ff4d4f' }} /></Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card><Statistic title="Cache Hit Ratio" value={`${cacheStats.hit_ratio.toFixed(1)}%`} /></Card>
+          <Card><Statistic title="Cache Hit Ratio" value={`${cacheStats.hitRatio.toFixed(1)}%`} /></Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card><Statistic title="Blocked Domains" value={blockerStats.total_domains.toLocaleString()} /></Card>
+          <Card><Statistic title="Blocked Domains" value={blockerStats.totalDomains.toLocaleString()} /></Card>
         </Col>
       </Row>
       <Row gutter={[16, 16]} className="mt-4">
@@ -36,10 +36,10 @@ export default function DNSStatsView({ stats, cacheStats, blockerStats }: Props)
       </Row>
       <Row gutter={[16, 16]} className="mt-4">
         <Col xs={24} md={12}>
-          <TopBlockedChart data={stats.top_blocked} />
+          <TopBlockedChart data={stats.topBlocked} />
         </Col>
         <Col xs={24} md={12}>
-          <TopClientsChart data={stats.top_clients} />
+          <TopClientsChart data={stats.topClients} />
         </Col>
       </Row>
     </div>

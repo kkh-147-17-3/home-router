@@ -1,64 +1,65 @@
 export interface DashboardData {
-  wan_ip: string
-  active_leases: number
-  total_queries: number
-  blocked_queries: number
-  block_rate: number
-  cache_hit_ratio: number
-  dns_enabled: boolean
+  wanIp: string
+  activeLeases: number
+  totalQueries: number
+  blockedQueries: number
+  blockRate: number
+  cacheHitRatio: number
+  dnsEnabled: boolean
 }
 
 export interface LeaseInfo {
   mac: string
   ip: string
   hostname?: string
-  expired_at: string
+  expiredAt: string
   static: boolean
 }
 
 export interface PoolInfo {
-  range_start: string
-  range_end: string
-  total_leases: number
-  static_leases: number
-  declined_ips: number
+  rangeStart: string
+  rangeEnd: string
+  totalLeases: number
+  staticLeases: number
+  declinedIps: number
 }
 
 export interface QueryEntry {
   timestamp: string
-  client_ip: string
+  clientIp: string
   domain: string
-  query_type: string
+  queryType: string
   blocked: boolean
   cached: boolean
-  response_time_ms: number
+  responseTimeMs: number
 }
 
 export interface QueryLogStats {
-  total_queries: number
-  blocked_queries: number
-  cached_queries: number
-  block_percentage: number
-  top_blocked: TopEntry[]
-  top_clients: TopEntry[]
+  totalQueries: number
+  blockedQueries: number
+  cachedQueries: number
+  blockPercentage: number
+  topBlocked: TopEntry[]
+  topClients: TopEntry[]
   hourly: Record<string, number>
 }
 
 export interface TopEntry {
   name: string
+  label?: string
   count: number
 }
 
 export interface CacheStats {
   size: number
-  max_size: number
+  maxSize: number
   hits: number
   misses: number
-  hit_ratio: number
+  hitRatio: number
 }
 
 export interface BlockerStats {
-  total_domains: number
+  totalDomains: number
   sources: number
   whitelist: number
 }
@@ -71,9 +72,9 @@ export interface WhitelistResponse {
 export interface PortForward {
   name: string
   protocol: string
-  external_port: number
-  internal_ip: string
-  internal_port: number
+  externalPort: number
+  internalIp: string
+  internalPort: number
 }
 
 export interface WANInfo {
@@ -90,8 +91,8 @@ export interface LANInfo {
 }
 
 export interface UptimeInfo {
-  uptime_seconds: number
-  start_time: string
+  uptimeSeconds: number
+  startTime: string
   uptime: string
 }
 
@@ -105,4 +106,87 @@ export interface LogEntry {
   unit: string
   message: string
   pid?: number
+}
+
+// DDNS
+export interface DDNSStatus {
+  enabled: boolean
+  provider: string
+  domain: string
+  lastIp: string
+  lastUpdate: string
+  lastError: string
+}
+
+export interface DDNSConfigRequest {
+  enabled: boolean
+  provider: string
+  domain: string
+  token: string
+  zoneId?: string
+  recordId?: string
+  proxied?: boolean
+  updateUrl?: string
+}
+
+// Monitor
+export interface AccessEntry {
+  timestamp: string
+  sourceIp: string
+  country?: string
+  countryCode?: string
+  destIp?: string
+  destPort: number
+  portName?: string
+  protocol: string
+  action: string
+  reason: string
+}
+
+export interface AccessStats {
+  totalEvents: number
+  uniqueSourceIps: number
+  topSourceIps: TopEntry[]
+  topPorts: TopEntry[]
+  hourly: Record<string, number>
+}
+
+// Traffic
+export interface ConnEntry {
+  protocol: string
+  state: string
+  srcIp: string
+  dstIp: string
+  dstDomain?: string
+  srcPort: number
+  dstPort: number
+  bytesSent: number
+  bytesRecv: number
+}
+
+export interface EndpointStat {
+  ip: string
+  domain?: string
+  port: number
+  protocol: string
+  bytesSent: number
+  bytesRecv: number
+  connections: number
+}
+
+export interface HostTraffic {
+  ip: string
+  hostname?: string
+  bytesSent: number
+  bytesRecv: number
+  connections: number
+  topDestinations: EndpointStat[]
+}
+
+export interface TrafficSummary {
+  totalSent: number
+  totalRecv: number
+  totalConnections: number
+  hosts: HostTraffic[]
+  topDestinations: EndpointStat[]
 }

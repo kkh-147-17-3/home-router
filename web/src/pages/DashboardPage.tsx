@@ -20,16 +20,16 @@ export default function DashboardPage() {
     <div>
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={6}>
-          <StatsCard title="WAN IP" value={dash.wan_ip || 'N/A'} />
+          <StatsCard title="WAN IP" value={dash.wanIp || 'N/A'} />
         </Col>
         <Col xs={12} sm={6}>
-          <StatsCard title="Active Leases" value={dash.active_leases} />
+          <StatsCard title="Active Leases" value={dash.activeLeases} />
         </Col>
         <Col xs={12} sm={6}>
-          <StatsCard title="DNS Queries (24h)" value={dash.total_queries} />
+          <StatsCard title="DNS Queries (24h)" value={dash.totalQueries} />
         </Col>
         <Col xs={12} sm={6}>
-          <StatsCard title="Block Rate" value={`${dash.block_rate.toFixed(1)}%`} />
+          <StatsCard title="Block Rate" value={`${dash.blockRate.toFixed(1)}%`} />
         </Col>
       </Row>
 
@@ -40,15 +40,15 @@ export default function DashboardPage() {
               <HourlyQueryChart hourly={stats.hourly} />
             </Col>
             <Col xs={24} md={8}>
-              <BlockedPieChart total={stats.total_queries} blocked={stats.blocked_queries} />
+              <BlockedPieChart total={stats.totalQueries} blocked={stats.blockedQueries} />
             </Col>
           </Row>
           <Row gutter={[16, 16]} className="mt-4">
             <Col xs={24} md={12}>
-              <TopBlockedChart data={stats.top_blocked} />
+              <TopBlockedChart data={stats.topBlocked} />
             </Col>
             <Col xs={24} md={12}>
-              <TopClientsChart data={stats.top_clients} />
+              <TopClientsChart data={stats.topClients} />
             </Col>
           </Row>
         </>

@@ -21,7 +21,7 @@ export default function SystemPage() {
         </Col>
         <Col xs={24} sm={12}>
           <Card>
-            <Statistic title="Start Time" value={uptime?.start_time ? new Date(uptime.start_time).toLocaleString() : 'N/A'} />
+            <Statistic title="Start Time" value={uptime?.startTime ? new Date(uptime.startTime).toLocaleString() : 'N/A'} />
           </Card>
         </Col>
       </Row>

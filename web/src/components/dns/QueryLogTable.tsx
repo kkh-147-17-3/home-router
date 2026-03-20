@@ -23,9 +23,9 @@ export default function QueryLogTable() {
       width: 180,
       render: (v: string) => new Date(v).toLocaleTimeString(),
     },
-    { title: 'Client', dataIndex: 'client_ip', key: 'client', width: 140 },
+    { title: 'Client', dataIndex: 'clientIp', key: 'client', width: 140 },
     { title: 'Domain', dataIndex: 'domain', key: 'domain', ellipsis: true },
-    { title: 'Type', dataIndex: 'query_type', key: 'type', width: 60 },
+    { title: 'Type', dataIndex: 'queryType', key: 'type', width: 60 },
     {
       title: 'Status',
       key: 'status',
@@ -38,7 +38,7 @@ export default function QueryLogTable() {
     },
     {
       title: 'Time (ms)',
-      dataIndex: 'response_time_ms',
+      dataIndex: 'responseTimeMs',
       key: 'rt',
       width: 90,
       render: (v: number) => v.toFixed(1),

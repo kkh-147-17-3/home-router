@@ -14,10 +14,10 @@ export default function ActiveLeasesTable({ leases, onRefresh }: Props) {
     { title: 'Hostname', dataIndex: 'hostname', key: 'hostname', render: (v: string) => v || '-' },
     {
       title: 'Expires',
-      dataIndex: 'expired_at',
-      key: 'expired_at',
+      dataIndex: 'expiredAt',
+      key: 'expiredAt',
       render: (v: string) => new Date(v).toLocaleString(),
-      sorter: (a: LeaseInfo, b: LeaseInfo) => new Date(a.expired_at).getTime() - new Date(b.expired_at).getTime(),
+      sorter: (a: LeaseInfo, b: LeaseInfo) => new Date(a.expiredAt).getTime() - new Date(b.expiredAt).getTime(),
     },
     {
       title: 'Type',

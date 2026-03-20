@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"golang.org/x/net/context"
 	"home-router/api"
+	"home-router/ddns"
 	"home-router/dhcp"
 	hdns "home-router/dns"
 	"home-router/internal/config"
 	"home-router/internal/iface"
+	"home-router/monitor"
 	"home-router/nat"
 	"home-router/network"
 	"home-router/web"
@@ -92,6 +94,7 @@ func main() {
 	var dnsBlocker *hdns.Blocker
 	var dnsCache *hdns.Cache
 	var dnsQueryLog *hdns.QueryLog
+	var dnsServer *hdns.Server
 	if cfg.Dns.Enabled {
 		log.Println("[4/7] DNS 서버 시작 중...")
 		dnsBlocker = hdns.NewBlocker(cfg.Dns.Blocklists, cfg.Dns.Whitelist)
@@ -103,8 +106,9 @@ func main() {
 			listenAddr = cfg.Dhcp.Server.Gateway + ":53"
 		}
 
+		dnsServer = hdns.NewServer(listenAddr, cfg.Dns.Upstream, dnsBlocker, dnsCache, dnsQueryLog)
 		go func() {
-			if err := hdns.RunServer(ctx, listenAddr, cfg.Dns.Upstream, dnsBlocker, dnsCache, dnsQueryLog); err != nil {
+			if err := dnsServer.Run(ctx); err != nil {
 				log.Printf("[DNS Server] 오류: %v", err)
 			}
 		}()
@@ -139,6 +143,28 @@ func main() {
 	}()
 	log.Println("[5/7] DHCP 서버 시작 완료")
 
+	// DDNS Manager
+	ddnsMgr := ddns.NewManager(
+		cfg.Ddns.Enabled, cfg.Ddns.Provider, cfg.Ddns.Domain,
+		cfg.Ddns.Token, cfg.Ddns.ZoneID, cfg.Ddns.RecordID,
+		cfg.Ddns.Proxied, cfg.Ddns.UpdateURL,
+	)
+
+	// conntrack 바이트 카운터 활성화
+	monitor.EnableConntrackAcct()
+
+	// Monitor (Access Log는 항상 생성, Watcher는 enabled일 때만)
+	monitorLogSize := cfg.Monitor.LogSize
+	if monitorLogSize <= 0 {
+		monitorLogSize = 10000
+	}
+	accessLog := monitor.NewAccessLog(monitorLogSize)
+
+	if cfg.Monitor.Enabled {
+		monitor.NewWatcher(ctx, wanIface.Attrs().Name, accessLog)
+		log.Println("[Monitor] WAN 접근 모니터링 시작")
+	}
+
 	// 6. Web UI 서버 시작
 	var apiServer *api.Server
 	if cfg.Web.Enabled {
@@ -157,8 +183,9 @@ func main() {
 			}
 		}
 
-		apiServer = api.NewServer(cfg, pool, dnsCache, dnsQueryLog, dnsBlocker,
-			wanIface.Attrs().Name, lanIface.Attrs().Name, staticFS)
+		apiServer = api.NewServer(cfg, pool, dnsCache, dnsQueryLog, dnsBlocker, dnsServer,
+			wanIface.Attrs().Name, lanIface.Attrs().Name, staticFS,
+			ddnsMgr, accessLog)
 		go apiServer.Start(ctx, listen)
 		log.Printf("[6/7] Web UI 서버 시작 완료 (%s)", listen)
 	}
@@ -229,6 +256,9 @@ func main() {
 		if apiServer != nil {
 			apiServer.SetWANIP(assignedIP.String())
 		}
+
+		// DDNS 업데이트
+		ddnsMgr.UpdateIP(assignedIP.String())
 
 		currentWanIP = cidr
 	}

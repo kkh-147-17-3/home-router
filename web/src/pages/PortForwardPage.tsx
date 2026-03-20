@@ -24,11 +24,11 @@ export default function PortForwardPage() {
   const columns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Protocol', dataIndex: 'protocol', key: 'protocol', render: (v: string) => v.toUpperCase() },
-    { title: 'External Port', dataIndex: 'external_port', key: 'ext' },
+    { title: 'External Port', dataIndex: 'externalPort', key: 'ext' },
     {
       title: 'Internal Target',
       key: 'internal',
-      render: (_: unknown, r: PortForward) => `${r.internal_ip}:${r.internal_port}`,
+      render: (_: unknown, r: PortForward) => `${r.internalIp}:${r.internalPort}`,
     },
     {
       title: 'Action',

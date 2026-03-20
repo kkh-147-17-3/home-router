@@ -3,13 +3,13 @@ package api
 import "net/http"
 
 type dashboardResponse struct {
-	WANIP          string  `json:"wan_ip"`
-	ActiveLeases   int     `json:"active_leases"`
-	TotalQueries   int     `json:"total_queries"`
-	BlockedQueries int     `json:"blocked_queries"`
-	BlockRate      float64 `json:"block_rate"`
-	CacheHitRatio  float64 `json:"cache_hit_ratio"`
-	DNSEnabled     bool    `json:"dns_enabled"`
+	WANIP          string  `json:"wanIp"`
+	ActiveLeases   int     `json:"activeLeases"`
+	TotalQueries   int     `json:"totalQueries"`
+	BlockedQueries int     `json:"blockedQueries"`
+	BlockRate      float64 `json:"blockRate"`
+	CacheHitRatio  float64 `json:"cacheHitRatio"`
+	DNSEnabled     bool    `json:"dnsEnabled"`
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {

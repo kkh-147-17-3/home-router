@@ -2,6 +2,7 @@ import { Layout, Menu } from 'antd'
 import {
   DashboardOutlined, WifiOutlined, SafetyOutlined,
   SwapOutlined, GlobalOutlined, SettingOutlined, FileTextOutlined,
+  CloudOutlined, AlertOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -14,6 +15,8 @@ const menuItems = [
   { key: '/port-forward', icon: <SwapOutlined />, label: 'Port Forward' },
   { key: '/network', icon: <GlobalOutlined />, label: 'Network' },
   { key: '/system', icon: <SettingOutlined />, label: 'System' },
+  { key: '/ddns', icon: <CloudOutlined />, label: 'DDNS' },
+  { key: '/security', icon: <AlertOutlined />, label: 'Security' },
   { key: '/logs', icon: <FileTextOutlined />, label: 'Logs' },
 ]
 

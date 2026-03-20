@@ -7,12 +7,12 @@ import (
 
 type QueryEntry struct {
 	Timestamp    time.Time `json:"timestamp"`
-	ClientIP     string    `json:"client_ip"`
+	ClientIP     string    `json:"clientIp"`
 	Domain       string    `json:"domain"`
-	QueryType    string    `json:"query_type"`
+	QueryType    string    `json:"queryType"`
 	Blocked      bool      `json:"blocked"`
 	Cached       bool      `json:"cached"`
-	ResponseTime float64   `json:"response_time_ms"`
+	ResponseTime float64   `json:"responseTimeMs"`
 }
 
 type QueryLog struct {
@@ -144,17 +144,18 @@ func (q *QueryLog) Stats() QueryLogStats {
 }
 
 type QueryLogStats struct {
-	TotalQueries    int         `json:"total_queries"`
-	BlockedQueries  int         `json:"blocked_queries"`
-	CachedQueries   int         `json:"cached_queries"`
-	BlockPercentage float64     `json:"block_percentage"`
-	TopBlocked      []TopEntry  `json:"top_blocked"`
-	TopClients      []TopEntry  `json:"top_clients"`
+	TotalQueries    int         `json:"totalQueries"`
+	BlockedQueries  int         `json:"blockedQueries"`
+	CachedQueries   int         `json:"cachedQueries"`
+	BlockPercentage float64     `json:"blockPercentage"`
+	TopBlocked      []TopEntry  `json:"topBlocked"`
+	TopClients      []TopEntry  `json:"topClients"`
 	Hourly          map[int]int `json:"hourly"`
 }
 
 type TopEntry struct {
 	Name  string `json:"name"`
+	Label string `json:"label,omitempty"`
 	Count int    `json:"count"`
 }
 

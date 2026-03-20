@@ -32,11 +32,11 @@ export default function AddPortForwardModal({ open, onClose, onSuccess }: Props)
         <Form.Item name="protocol" label="Protocol" rules={[{ required: true }]}>
           <Select options={[{ value: 'tcp', label: 'TCP' }, { value: 'udp', label: 'UDP' }]} />
         </Form.Item>
-        <Form.Item name="external_port" label="External Port" rules={[{ required: true }]}>
+        <Form.Item name="externalPort" label="External Port" rules={[{ required: true }]}>
           <InputNumber min={1} max={65535} className="w-full" />
         </Form.Item>
         <Form.Item
-          name="internal_ip"
+          name="internalIp"
           label="Internal IP"
           rules={[
             { required: true },
@@ -45,7 +45,7 @@ export default function AddPortForwardModal({ open, onClose, onSuccess }: Props)
         >
           <Input placeholder="192.168.1.100" />
         </Form.Item>
-        <Form.Item name="internal_port" label="Internal Port" rules={[{ required: true }]}>
+        <Form.Item name="internalPort" label="Internal Port" rules={[{ required: true }]}>
           <InputNumber min={1} max={65535} className="w-full" />
         </Form.Item>
       </Form>

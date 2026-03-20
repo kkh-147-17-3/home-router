@@ -3,6 +3,8 @@ import type {
   DashboardData, LeaseInfo, PoolInfo, QueryEntry, QueryLogStats,
   CacheStats, BlockerStats, WhitelistResponse, PortForward,
   WANInfo, LANInfo, UptimeInfo, SystemConfig, LogEntry,
+  DDNSStatus, DDNSConfigRequest, AccessEntry, AccessStats,
+  TrafficSummary, ConnEntry,
 } from './types'
 
 const api = axios.create({ baseURL: '/api' })
@@ -92,3 +94,26 @@ export const getSystemConfig = () =>
 
 export const getSystemLogs = (params?: { unit?: string; lines?: string; priority?: string; since?: string; grep?: string }) =>
   api.get<LogEntry[]>('/system/logs', { params }).then(r => r.data)
+
+// DDNS
+export const getDDNSStatus = () =>
+  api.get<DDNSStatus>('/ddns/status').then(r => r.data)
+
+export const updateDDNS = () =>
+  api.post('/ddns/update')
+
+export const updateDDNSConfig = (data: DDNSConfigRequest) =>
+  api.post('/ddns/config', data)
+
+// Monitor
+export const getAccessLog = (params?: Record<string, string>) =>
+  api.get<AccessEntry[]>('/monitor/access-log', { params }).then(r => r.data)
+
+export const getMonitorStats = () =>
+  api.get<AccessStats>('/monitor/stats').then(r => r.data)
+
+export const getTraffic = () =>
+  api.get<TrafficSummary>('/monitor/traffic').then(r => r.data)
+
+export const getConnections = (host?: string) =>
+  api.get<ConnEntry[]>('/monitor/connections', { params: host ? { host } : {} }).then(r => r.data)

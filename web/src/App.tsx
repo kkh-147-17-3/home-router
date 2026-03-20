@@ -10,6 +10,8 @@ import PortForwardPage from './pages/PortForwardPage'
 import NetworkPage from './pages/NetworkPage'
 import SystemPage from './pages/SystemPage'
 import LogsPage from './pages/LogsPage'
+import DDNSPage from './pages/DDNSPage'
+import SecurityPage from './pages/SecurityPage'
 
 export default function App() {
   const auth = useAuth()
@@ -27,6 +29,8 @@ export default function App() {
           <Route path="/network" element={<NetworkPage />} />
           <Route path="/system" element={<SystemPage />} />
           <Route path="/logs" element={<LogsPage />} />
+          <Route path="/ddns" element={<DDNSPage />} />
+          <Route path="/security" element={<SecurityPage />} />
         </Route>
       </Route>
     </Routes>

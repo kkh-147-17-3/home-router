@@ -12,10 +12,11 @@ import (
 )
 
 type Server struct {
-	Blocker  *Blocker
-	Cache    *Cache
-	QueryLog *QueryLog
-	upstream []string
+	Blocker    *Blocker
+	Cache      *Cache
+	QueryLog   *QueryLog
+	ReverseDNS *ReverseDNS
+	upstream   []string
 	listenAddr string
 }
 
@@ -31,24 +32,24 @@ func NewServer(listenAddr string, upstream []string, blocker *Blocker, cache *Ca
 		Blocker:    blocker,
 		Cache:      cache,
 		QueryLog:   queryLog,
+		ReverseDNS: NewReverseDNS(50000),
 		upstream:   upstream,
 		listenAddr: listenAddr,
 	}
 }
 
-func RunServer(ctx context.Context, listenAddr string, upstream []string, blocker *Blocker, cache *Cache, queryLog *QueryLog) error {
-	s := NewServer(listenAddr, upstream, blocker, cache, queryLog)
-
+// Run 은 DNS 서버를 시작하고 ctx가 취소되거나 오류가 발생할 때까지 블로킹한다.
+func (s *Server) Run(ctx context.Context) error {
 	mux := dns.NewServeMux()
 	mux.HandleFunc(".", s.handleQuery)
 
 	udpServer := &dns.Server{
-		Addr:    listenAddr,
+		Addr:    s.listenAddr,
 		Net:     "udp",
 		Handler: mux,
 	}
 	tcpServer := &dns.Server{
-		Addr:    listenAddr,
+		Addr:    s.listenAddr,
 		Net:     "tcp",
 		Handler: mux,
 	}
@@ -56,12 +57,12 @@ func RunServer(ctx context.Context, listenAddr string, upstream []string, blocke
 	errCh := make(chan error, 2)
 
 	go func() {
-		log.Printf("[DNS Server] UDP 서버 시작: %s", listenAddr)
+		log.Printf("[DNS Server] UDP 서버 시작: %s", s.listenAddr)
 		errCh <- udpServer.ListenAndServe()
 	}()
 
 	go func() {
-		log.Printf("[DNS Server] TCP 서버 시작: %s", listenAddr)
+		log.Printf("[DNS Server] TCP 서버 시작: %s", s.listenAddr)
 		errCh <- tcpServer.ListenAndServe()
 	}()
 
@@ -113,6 +114,7 @@ func (s *Server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 
 	// 2. 캐시 확인
 	if cached := s.Cache.Get(q.Name, q.Qtype); cached != nil {
+		s.ReverseDNS.LearnFromResponse(cached)
 		cached.Id = r.Id
 		w.WriteMsg(cached)
 
@@ -138,8 +140,9 @@ func (s *Server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 		return
 	}
 
-	// 캐시 저장
+	// 캐시 저장 + IP→도메인 매핑 학습
 	s.Cache.Put(q.Name, q.Qtype, resp)
+	s.ReverseDNS.LearnFromResponse(resp)
 
 	resp.Id = r.Id
 	w.WriteMsg(resp)
@@ -190,17 +193,44 @@ func (s *Server) blockedResponse(r *dns.Msg) *dns.Msg {
 }
 
 func (s *Server) forwardQuery(r *dns.Msg) (*dns.Msg, error) {
-	client := &dns.Client{
-		Timeout: 5 * time.Second,
+	// 모든 업스트림에 동시에 쿼리, 가장 빠른 응답을 사용
+	type result struct {
+		resp     *dns.Msg
+		upstream string
+		err      error
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	ch := make(chan result, len(s.upstream))
 
 	for _, upstream := range s.upstream {
-		resp, _, err := client.Exchange(r, upstream)
-		if err == nil {
-			return resp, nil
-		}
-		log.Printf("[DNS Server] 업스트림 %s 실패: %v, 다음 시도...", upstream, err)
+		go func(addr string) {
+			client := &dns.Client{Timeout: 3 * time.Second}
+			resp, _, err := client.ExchangeContext(ctx, r, addr)
+			ch <- result{resp: resp, upstream: addr, err: err}
+		}(upstream)
 	}
 
-	return nil, fmt.Errorf("모든 업스트림 DNS 서버 응답 없음")
+	var lastErr error
+	for range s.upstream {
+		res := <-ch
+		if res.err != nil {
+			log.Printf("[DNS Server] 업스트림 %s 실패: %v", res.upstream, res.err)
+			lastErr = res.err
+			continue
+		}
+		cancel() // 성공하면 나머지 취소
+		return res.resp, nil
+	}
+
+	// 모든 업스트림 실패 → stale cache fallback
+	q := r.Question[0]
+	if stale := s.Cache.GetStale(q.Name, q.Qtype, 5*time.Minute); stale != nil {
+		log.Printf("[DNS Server] 업스트림 전체 실패, stale 캐시 반환: %s", normalizeDomain(q.Name))
+		return stale, nil
+	}
+
+	return nil, fmt.Errorf("모든 업스트림 DNS 서버 응답 없음: %v", lastErr)
 }

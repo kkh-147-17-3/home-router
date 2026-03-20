@@ -2,16 +2,18 @@ package api
 
 import (
 	"encoding/json"
+	"home-router/internal/config"
 	"home-router/nat"
+	"log"
 	"net/http"
 )
 
 type portForwardResponse struct {
 	Name         string `json:"name"`
 	Protocol     string `json:"protocol"`
-	ExternalPort int    `json:"external_port"`
-	InternalIP   string `json:"internal_ip"`
-	InternalPort int    `json:"internal_port"`
+	ExternalPort int    `json:"externalPort"`
+	InternalIP   string `json:"internalIp"`
+	InternalPort int    `json:"internalPort"`
 }
 
 func (s *Server) handleNATPortForwards(w http.ResponseWriter, r *http.Request) {
@@ -31,9 +33,9 @@ func (s *Server) handleNATPortForwards(w http.ResponseWriter, r *http.Request) {
 type addPortForwardRequest struct {
 	Name         string `json:"name"`
 	Protocol     string `json:"protocol"`
-	ExternalPort int    `json:"external_port"`
-	InternalIP   string `json:"internal_ip"`
-	InternalPort int    `json:"internal_port"`
+	ExternalPort int    `json:"externalPort"`
+	InternalIP   string `json:"internalIp"`
+	InternalPort int    `json:"internalPort"`
 }
 
 func (s *Server) handleNATAddPortForward(w http.ResponseWriter, r *http.Request) {
@@ -70,20 +72,17 @@ func (s *Server) handleNATAddPortForward(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// config에 추가 (메모리만, 파일 저장 안 함)
-	s.cfg.PortForwarding = append(s.cfg.PortForwarding, struct {
-		Name         string `yaml:"name"`
-		Protocol     string `yaml:"protocol"`
-		ExternalPort int    `yaml:"external_port"`
-		InternalIP   string `yaml:"internal_ip"`
-		InternalPort int    `yaml:"internal_port"`
-	}{
+	s.cfg.PortForwarding = append(s.cfg.PortForwarding, config.PortForwardEntry{
 		Name:         req.Name,
 		Protocol:     req.Protocol,
 		ExternalPort: req.ExternalPort,
 		InternalIP:   req.InternalIP,
 		InternalPort: req.InternalPort,
 	})
+
+	if err := s.cfg.Save(); err != nil {
+		log.Printf("[API] 포트포워딩 설정 저장 실패: %v", err)
+	}
 
 	writeJSON(w, map[string]string{"status": "ok"})
 }
@@ -118,6 +117,10 @@ func (s *Server) handleNATRemovePortForward(w http.ResponseWriter, r *http.Reque
 	if !found {
 		http.Error(w, `{"error":"port forward not found"}`, http.StatusNotFound)
 		return
+	}
+
+	if err := s.cfg.Save(); err != nil {
+		log.Printf("[API] 포트포워딩 설정 저장 실패: %v", err)
 	}
 
 	writeJSON(w, map[string]string{"status": "ok"})

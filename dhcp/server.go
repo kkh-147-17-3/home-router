@@ -14,10 +14,11 @@ func RunServer(ctx context.Context, iface string, pool *Pool, cfg *config.Config
 		msgType := m.MessageType()
 		macAddress := m.ClientHWAddr
 		hostname := m.HostName()
-		if hostname == "" {
-			hostname = "(알 수 없음)"
+		logHostname := hostname
+		if logHostname == "" {
+			logHostname = "(알 수 없음)"
 		}
-		log.Printf("[DHCP Server] 수신: MAC=%s, 호스트=%s, 타입=%s", macAddress, hostname, msgType)
+		log.Printf("[DHCP Server] 수신: MAC=%s, 호스트=%s, 타입=%s", macAddress, logHostname, msgType)
 
 		var replyType dhcpv4.MessageType
 		switch msgType {
@@ -36,7 +37,8 @@ func RunServer(ctx context.Context, iface string, pool *Pool, cfg *config.Config
 			return
 		}
 
-		ip := pool.handleClientRequest(macAddress.String(), cfg)
+		clientHostname := m.HostName()
+		ip := pool.handleClientRequest(macAddress.String(), clientHostname, cfg)
 		if ip == nil {
 			return
 		}

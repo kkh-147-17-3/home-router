@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	hdns "home-router/dns"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,7 +14,9 @@ func (s *Server) handleDNSStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"dns not enabled"}`, http.StatusServiceUnavailable)
 		return
 	}
-	writeJSON(w, s.queryLog.Stats())
+	stats := s.queryLog.Stats()
+	s.enrichTopClients(stats.TopClients)
+	writeJSON(w, stats)
 }
 
 func (s *Server) handleDNSQueryLog(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +123,13 @@ func (s *Server) handleDNSAddWhitelist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.blocker.AddWhitelist(req.Domain)
+
+	// Sync to config and save
+	s.cfg.Dns.Whitelist = append(s.cfg.Dns.Whitelist, req.Domain)
+	if err := s.cfg.Save(); err != nil {
+		log.Printf("[API] 화이트리스트 설정 저장 실패: %v", err)
+	}
+
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 
@@ -135,5 +146,37 @@ func (s *Server) handleDNSRemoveWhitelist(w http.ResponseWriter, r *http.Request
 	}
 
 	s.blocker.RemoveWhitelist(domain)
+
+	// Sync to config and save
+	for i, d := range s.cfg.Dns.Whitelist {
+		if d == domain {
+			s.cfg.Dns.Whitelist = append(s.cfg.Dns.Whitelist[:i], s.cfg.Dns.Whitelist[i+1:]...)
+			break
+		}
+	}
+	if err := s.cfg.Save(); err != nil {
+		log.Printf("[API] 화이트리스트 설정 저장 실패: %v", err)
+	}
+
 	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+// enrichTopClients adds hostname labels to TopClients entries (IP → hostname).
+func (s *Server) enrichTopClients(clients []hdns.TopEntry) {
+	hostnames := make(map[string]string)
+	for _, sl := range s.cfg.Dhcp.StaticLeases {
+		hostnames[sl.IP] = sl.Name
+	}
+	if s.pool != nil {
+		for _, l := range s.pool.ActiveLeases() {
+			if l.Hostname != "" {
+				hostnames[l.IP] = l.Hostname
+			}
+		}
+	}
+	for i := range clients {
+		if name, ok := hostnames[clients[i].Name]; ok {
+			clients[i].Label = name
+		}
+	}
 }

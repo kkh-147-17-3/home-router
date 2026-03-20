@@ -32,9 +32,9 @@ export default function LiveDNSStream() {
       width: 100,
       render: (v: string) => new Date(v).toLocaleTimeString(),
     },
-    { title: 'Client', dataIndex: 'client_ip', key: 'client', width: 130 },
+    { title: 'Client', dataIndex: 'clientIp', key: 'client', width: 130 },
     { title: 'Domain', dataIndex: 'domain', key: 'domain', ellipsis: true },
-    { title: 'Type', dataIndex: 'query_type', key: 'type', width: 60 },
+    { title: 'Type', dataIndex: 'queryType', key: 'type', width: 60 },
     {
       title: 'Status',
       key: 'status',

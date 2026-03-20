@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"home-router/internal/config"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -63,6 +65,17 @@ func (s *Server) handleDHCPAddStaticLease(w http.ResponseWriter, r *http.Request
 	}
 
 	s.pool.AddStaticLease(req.Name, req.MAC, ip)
+
+	// Sync to config and save
+	s.cfg.Dhcp.StaticLeases = append(s.cfg.Dhcp.StaticLeases, config.StaticLeaseEntry{
+		Name:       req.Name,
+		MacAddress: req.MAC,
+		IP:         req.IP,
+	})
+	if err := s.cfg.Save(); err != nil {
+		log.Printf("[API] 정적 임대 설정 저장 실패: %v", err)
+	}
+
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 
@@ -79,5 +92,17 @@ func (s *Server) handleDHCPRemoveStaticLease(w http.ResponseWriter, r *http.Requ
 	}
 
 	s.pool.RemoveStaticLease(mac)
+
+	// Sync to config and save
+	for i, sl := range s.cfg.Dhcp.StaticLeases {
+		if sl.MacAddress == mac {
+			s.cfg.Dhcp.StaticLeases = append(s.cfg.Dhcp.StaticLeases[:i], s.cfg.Dhcp.StaticLeases[i+1:]...)
+			break
+		}
+	}
+	if err := s.cfg.Save(); err != nil {
+		log.Printf("[API] 정적 임대 설정 저장 실패: %v", err)
+	}
+
 	writeJSON(w, map[string]string{"status": "ok"})
 }

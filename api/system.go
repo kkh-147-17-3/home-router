@@ -14,8 +14,8 @@ import (
 func (s *Server) handleSystemUptime(w http.ResponseWriter, r *http.Request) {
 	uptime := time.Since(s.startTime)
 	writeJSON(w, map[string]interface{}{
-		"uptime_seconds": int(uptime.Seconds()),
-		"start_time":     s.startTime.Format(time.RFC3339),
+		"uptimeSeconds": int(uptime.Seconds()),
+		"startTime":     s.startTime.Format(time.RFC3339),
 		"uptime":         uptime.String(),
 	})
 }

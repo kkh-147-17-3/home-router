@@ -45,15 +45,40 @@ func (c *Cache) Get(name string, qtype uint16) *dns.Msg {
 	}
 
 	if time.Now().After(entry.expiresAt) {
-		c.mu.Lock()
-		delete(c.entries, key)
-		c.mu.Unlock()
 		c.misses.Add(1)
 		return nil
 	}
 
 	c.hits.Add(1)
 	return entry.msg.Copy()
+}
+
+// GetStale 는 만료된 캐시 엔트리도 반환한다. 업스트림 실패 시 fallback 용도.
+// maxStale 이내에 만료된 엔트리만 반환한다.
+func (c *Cache) GetStale(name string, qtype uint16, maxStale time.Duration) *dns.Msg {
+	key := cacheKey(name, qtype)
+
+	c.mu.RLock()
+	entry, ok := c.entries[key]
+	c.mu.RUnlock()
+
+	if !ok {
+		return nil
+	}
+
+	if time.Now().After(entry.expiresAt.Add(maxStale)) {
+		return nil
+	}
+
+	msg := entry.msg.Copy()
+	// stale 응답의 TTL을 30초로 설정
+	for _, rr := range msg.Answer {
+		rr.Header().Ttl = 30
+	}
+	for _, rr := range msg.Ns {
+		rr.Header().Ttl = 30
+	}
+	return msg
 }
 
 func (c *Cache) Put(name string, qtype uint16, msg *dns.Msg) {
@@ -112,10 +137,10 @@ func (c *Cache) Stats() CacheStats {
 
 type CacheStats struct {
 	Size     int     `json:"size"`
-	MaxSize  int     `json:"max_size"`
+	MaxSize  int     `json:"maxSize"`
 	Hits     uint64  `json:"hits"`
 	Misses   uint64  `json:"misses"`
-	HitRatio float64 `json:"hit_ratio"`
+	HitRatio float64 `json:"hitRatio"`
 }
 
 func cacheKey(name string, qtype uint16) string {

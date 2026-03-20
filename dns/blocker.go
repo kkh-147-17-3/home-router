@@ -111,7 +111,7 @@ func (b *Blocker) Stats() BlockerStats {
 }
 
 type BlockerStats struct {
-	TotalDomains int `json:"total_domains"`
+	TotalDomains int `json:"totalDomains"`
 	Sources      int `json:"sources"`
 	Whitelist    int `json:"whitelist"`
 }

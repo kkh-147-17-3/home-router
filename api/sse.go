@@ -94,3 +94,35 @@ func (s *Server) handleSSESystemLogs(w http.ResponseWriter, r *http.Request) {
 
 	cmd.Wait()
 }
+
+func (s *Server) handleSSEAccessLog(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, `{"error":"SSE not supported"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if s.accessLog == nil {
+		http.Error(w, `{"error":"monitor not enabled"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	ch := s.accessLog.Subscribe()
+	defer s.accessLog.Unsubscribe(ch)
+
+	for {
+		select {
+		case entry := <-ch:
+			data, _ := json.Marshal(entry)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
+}

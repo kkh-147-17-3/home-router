@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"home-router/ddns"
 	"home-router/dhcp"
 	hdns "home-router/dns"
 	"home-router/internal/config"
+	"home-router/monitor"
 	"io/fs"
 	"log"
 	"net/http"
@@ -16,8 +18,9 @@ type Server struct {
 	pool      *dhcp.Pool
 	cache     *hdns.Cache
 	queryLog  *hdns.QueryLog
-	blocker   *hdns.Blocker
-	cfg       *config.Config
+	blocker    *hdns.Blocker
+	dnsServer  *hdns.Server
+	cfg        *config.Config
 	startTime time.Time
 	wanIP     string
 	wanIface  string
@@ -26,22 +29,28 @@ type Server struct {
 	sessions  map[string]time.Time
 	sessMu    sync.RWMutex
 	staticFS  fs.FS
+	ddns      *ddns.Manager
+	accessLog *monitor.AccessLog
 }
 
 func NewServer(cfg *config.Config, pool *dhcp.Pool, cache *hdns.Cache,
-	queryLog *hdns.QueryLog, blocker *hdns.Blocker,
-	wanIface, lanIface string, staticFS fs.FS) *Server {
+	queryLog *hdns.QueryLog, blocker *hdns.Blocker, dnsServer *hdns.Server,
+	wanIface, lanIface string, staticFS fs.FS,
+	ddnsMgr *ddns.Manager, accessLog *monitor.AccessLog) *Server {
 	return &Server{
 		pool:      pool,
 		cache:     cache,
 		queryLog:  queryLog,
 		blocker:   blocker,
+		dnsServer: dnsServer,
 		cfg:       cfg,
 		startTime: time.Now(),
 		wanIface:  wanIface,
 		lanIface:  lanIface,
 		sessions:  make(map[string]time.Time),
 		staticFS:  staticFS,
+		ddns:      ddnsMgr,
+		accessLog: accessLog,
 	}
 }
 
@@ -87,6 +96,18 @@ func (s *Server) Start(ctx context.Context, addr string) {
 
 	mux.HandleFunc("GET /api/sse/dns-querylog", s.auth(s.handleSSEDNSQueryLog))
 	mux.HandleFunc("GET /api/sse/system-logs", s.auth(s.handleSSESystemLogs))
+
+	// DDNS routes
+	mux.HandleFunc("GET /api/ddns/status", s.auth(s.handleDDNSStatus))
+	mux.HandleFunc("POST /api/ddns/update", s.auth(s.handleDDNSUpdate))
+	mux.HandleFunc("POST /api/ddns/config", s.auth(s.handleDDNSConfig))
+
+	// Monitor routes
+	mux.HandleFunc("GET /api/monitor/access-log", s.auth(s.handleMonitorAccessLog))
+	mux.HandleFunc("GET /api/monitor/stats", s.auth(s.handleMonitorStats))
+	mux.HandleFunc("GET /api/monitor/traffic", s.auth(s.handleMonitorTraffic))
+	mux.HandleFunc("GET /api/monitor/connections", s.auth(s.handleMonitorConnections))
+	mux.HandleFunc("GET /api/sse/access-log", s.auth(s.handleSSEAccessLog))
 
 	// SPA — embedded frontend
 	if s.staticFS != nil {
