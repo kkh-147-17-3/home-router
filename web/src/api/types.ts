@@ -135,6 +135,7 @@ export interface AccessEntry {
   sourceIp: string
   country?: string
   countryCode?: string
+  org?: string
   destIp?: string
   destPort: number
   portName?: string
@@ -158,6 +159,7 @@ export interface ConnEntry {
   srcIp: string
   dstIp: string
   dstDomain?: string
+  dstOrg?: string
   srcPort: number
   dstPort: number
   bytesSent: number
@@ -167,6 +169,7 @@ export interface ConnEntry {
 export interface EndpointStat {
   ip: string
   domain?: string
+  org?: string
   port: number
   protocol: string
   bytesSent: number

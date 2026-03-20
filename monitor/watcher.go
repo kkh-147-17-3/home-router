@@ -30,12 +30,12 @@ type Watcher struct {
 }
 
 // NewWatcher creates a Watcher and starts monitoring.
-func NewWatcher(ctx context.Context, wanIface string, accessLog *AccessLog) *Watcher {
+func NewWatcher(ctx context.Context, wanIface string, accessLog *AccessLog, geoCache *GeoIPCache) *Watcher {
 	ctx, cancel := context.WithCancel(ctx)
 	w := &Watcher{
 		wanIface:  wanIface,
 		accessLog: accessLog,
-		geoCache:  NewGeoIPCache(),
+		geoCache:  geoCache,
 		cancel:    cancel,
 	}
 
@@ -113,6 +113,7 @@ func (w *Watcher) runJournalctl(ctx context.Context) error {
 			geo := w.geoCache.Lookup(entry.SourceIP)
 			entry.Country = geo.Country
 			entry.CountryCode = geo.CountryCode
+			entry.Org = geo.Org
 			entry.PortName = wellKnownPort(entry.DestPort, entry.Protocol)
 			w.accessLog.Add(entry)
 		}

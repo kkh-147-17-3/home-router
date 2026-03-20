@@ -53,9 +53,12 @@ function TrafficTab() {
     {
       title: 'Destination',
       key: 'ip',
-      render: (_: unknown, r: EndpointStat) => r.domain
-        ? <span title={r.ip}>{r.domain}</span>
-        : r.ip,
+      render: (_: unknown, r: EndpointStat) => {
+        const label = r.domain || r.org
+        return label
+          ? <span title={r.ip}>{label}</span>
+          : r.ip
+      },
     },
     { title: 'Port', dataIndex: 'port', key: 'port' },
     {
@@ -150,9 +153,12 @@ function ConnectionsTab() {
     {
       title: 'Destination',
       key: 'dst',
-      render: (_: unknown, r: ConnEntry) => r.dstDomain
-        ? <span title={r.dstIp}>{r.dstDomain}</span>
-        : r.dstIp,
+      render: (_: unknown, r: ConnEntry) => {
+        const label = r.dstDomain || r.dstOrg
+        return label
+          ? <span title={r.dstIp}>{label}</span>
+          : r.dstIp
+      },
     },
     { title: 'Dest Port', dataIndex: 'dstPort', key: 'dport' },
     {

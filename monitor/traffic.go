@@ -18,6 +18,7 @@ type ConnEntry struct {
 	SrcIP     string `json:"srcIp"`
 	DstIP     string `json:"dstIp"`
 	DstDomain string `json:"dstDomain,omitempty"`
+	DstOrg    string `json:"dstOrg,omitempty"`
 	SrcPort   int    `json:"srcPort"`
 	DstPort   int    `json:"dstPort"`
 	BytesSent int64  `json:"bytesSent"`
@@ -38,6 +39,7 @@ type HostTraffic struct {
 type EndpointStat struct {
 	IP          string `json:"ip"`
 	Domain      string `json:"domain,omitempty"`
+	Org         string `json:"org,omitempty"`
 	Port        int    `json:"port"`
 	Protocol    string `json:"protocol"`
 	BytesSent   int64  `json:"bytesSent"`

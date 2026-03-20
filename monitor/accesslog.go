@@ -11,6 +11,7 @@ type AccessEntry struct {
 	SourceIP    string    `json:"sourceIp"`
 	Country     string    `json:"country,omitempty"`
 	CountryCode string    `json:"countryCode,omitempty"`
+	Org         string    `json:"org,omitempty"`
 	DestIP      string    `json:"destIp,omitempty"`
 	DestPort    int       `json:"destPort"`
 	PortName    string    `json:"portName,omitempty"`

@@ -159,9 +159,10 @@ func main() {
 		monitorLogSize = 10000
 	}
 	accessLog := monitor.NewAccessLog(monitorLogSize)
+	geoCache := monitor.NewGeoIPCache()
 
 	if cfg.Monitor.Enabled {
-		monitor.NewWatcher(ctx, wanIface.Attrs().Name, accessLog)
+		monitor.NewWatcher(ctx, wanIface.Attrs().Name, accessLog, geoCache)
 		log.Println("[Monitor] WAN 접근 모니터링 시작")
 	}
 
@@ -185,7 +186,7 @@ func main() {
 
 		apiServer = api.NewServer(cfg, pool, dnsCache, dnsQueryLog, dnsBlocker, dnsServer,
 			wanIface.Attrs().Name, lanIface.Attrs().Name, staticFS,
-			ddnsMgr, accessLog)
+			ddnsMgr, accessLog, geoCache)
 		go apiServer.Start(ctx, listen)
 		log.Printf("[6/7] Web UI 서버 시작 완료 (%s)", listen)
 	}

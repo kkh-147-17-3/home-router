@@ -31,12 +31,13 @@ type Server struct {
 	staticFS  fs.FS
 	ddns      *ddns.Manager
 	accessLog *monitor.AccessLog
+	geoCache  *monitor.GeoIPCache
 }
 
 func NewServer(cfg *config.Config, pool *dhcp.Pool, cache *hdns.Cache,
 	queryLog *hdns.QueryLog, blocker *hdns.Blocker, dnsServer *hdns.Server,
 	wanIface, lanIface string, staticFS fs.FS,
-	ddnsMgr *ddns.Manager, accessLog *monitor.AccessLog) *Server {
+	ddnsMgr *ddns.Manager, accessLog *monitor.AccessLog, geoCache *monitor.GeoIPCache) *Server {
 	return &Server{
 		pool:      pool,
 		cache:     cache,
@@ -51,6 +52,7 @@ func NewServer(cfg *config.Config, pool *dhcp.Pool, cache *hdns.Cache,
 		staticFS:  staticFS,
 		ddns:      ddnsMgr,
 		accessLog: accessLog,
+		geoCache:  geoCache,
 	}
 }
 

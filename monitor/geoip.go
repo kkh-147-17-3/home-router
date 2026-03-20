@@ -12,6 +12,7 @@ import (
 type GeoInfo struct {
 	Country     string `json:"country"`
 	CountryCode string `json:"countryCode"`
+	Org         string `json:"org,omitempty"`
 }
 
 // GeoIPCache 는 IP별 국가 정보를 캐싱하는 GeoIP 조회기이다.
@@ -79,10 +80,11 @@ type ipAPIResponse struct {
 	Status      string `json:"status"`
 	Country     string `json:"country"`
 	CountryCode string `json:"countryCode"`
+	Org         string `json:"org"`
 }
 
 func (g *GeoIPCache) fetchFromAPI(ip string) GeoInfo {
-	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,countryCode", ip)
+	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,countryCode,org", ip)
 	resp, err := g.client.Get(url)
 	if err != nil {
 		return GeoInfo{Country: "Unknown", CountryCode: "??"}
@@ -97,6 +99,7 @@ func (g *GeoIPCache) fetchFromAPI(ip string) GeoInfo {
 	return GeoInfo{
 		Country:     result.Country,
 		CountryCode: result.CountryCode,
+		Org:         result.Org,
 	}
 }
 

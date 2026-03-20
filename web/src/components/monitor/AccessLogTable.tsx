@@ -44,10 +44,11 @@ export default function AccessLogTable() {
       title: 'Source',
       key: 'src',
       render: (_: unknown, r: AccessEntry) => (
-        <span>
-          {r.sourceIp}
+        <div>
+          <span>{r.sourceIp}</span>
           <CountryFlag code={r.countryCode} country={r.country} />
-        </span>
+          {r.org && <div className="text-xs text-gray-400">{r.org}</div>}
+        </div>
       ),
     },
     {

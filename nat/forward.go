@@ -43,6 +43,13 @@ func Enable(wanIface, lanIface string) error {
 		return fmt.Errorf("WAN→LAN FORWARD 룰 추가 실패: %w", err)
 	}
 
+	// 4-1. LAN → LAN 포워딩 허용 (Hairpin NAT)
+	err = exec.Command("iptables", "-A", chainName,
+		"-i", lanIface, "-o", lanIface, "-j", "ACCEPT").Run()
+	if err != nil {
+		return fmt.Errorf("LAN→LAN FORWARD 룰 추가 실패: %w", err)
+	}
+
 	// 5. MASQUERADE (NAT)
 	exec.Command("iptables", "-t", "nat", "-D", "POSTROUTING",
 		"-o", wanIface, "-j", "MASQUERADE").Run()

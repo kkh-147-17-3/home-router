@@ -71,15 +71,23 @@ func (s *Server) handleMonitorTraffic(w http.ResponseWriter, r *http.Request) {
 
 	summary := monitor.BuildTrafficSummary(entries, hostnames)
 
-	// ReverseDNS로 목적지 도메인 채우기
+	// ReverseDNS로 목적지 도메인 채우기 + Org 정보
 	if s.dnsServer != nil && s.dnsServer.ReverseDNS != nil {
 		for i := range summary.Hosts {
 			for j := range summary.Hosts[i].TopDests {
-				summary.Hosts[i].TopDests[j].Domain = s.dnsServer.ReverseDNS.Lookup(summary.Hosts[i].TopDests[j].IP)
+				ep := &summary.Hosts[i].TopDests[j]
+				ep.Domain = s.dnsServer.ReverseDNS.Lookup(ep.IP)
+				if ep.Domain == "" && s.geoCache != nil {
+					ep.Org = s.geoCache.Lookup(ep.IP).Org
+				}
 			}
 		}
 		for i := range summary.TopDestinations {
-			summary.TopDestinations[i].Domain = s.dnsServer.ReverseDNS.Lookup(summary.TopDestinations[i].IP)
+			ep := &summary.TopDestinations[i]
+			ep.Domain = s.dnsServer.ReverseDNS.Lookup(ep.IP)
+			if ep.Domain == "" && s.geoCache != nil {
+				ep.Org = s.geoCache.Lookup(ep.IP).Org
+			}
 		}
 	}
 
@@ -106,10 +114,13 @@ func (s *Server) handleMonitorConnections(w http.ResponseWriter, r *http.Request
 		entries = filtered
 	}
 
-	// ReverseDNS로 목적지 도메인 채우기
+	// ReverseDNS로 목적지 도메인 채우기 + Org 정보
 	if s.dnsServer != nil && s.dnsServer.ReverseDNS != nil {
 		for i := range entries {
 			entries[i].DstDomain = s.dnsServer.ReverseDNS.Lookup(entries[i].DstIP)
+			if entries[i].DstDomain == "" && s.geoCache != nil {
+				entries[i].DstOrg = s.geoCache.Lookup(entries[i].DstIP).Org
+			}
 		}
 	}
 
