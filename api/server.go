@@ -67,6 +67,7 @@ func (s *Server) Start(ctx context.Context, addr string) {
 
 	// API routes
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	mux.HandleFunc("GET /api/auth/check", s.handleAuthCheck)
 
 	mux.HandleFunc("GET /api/dashboard", s.auth(s.handleDashboard))
 

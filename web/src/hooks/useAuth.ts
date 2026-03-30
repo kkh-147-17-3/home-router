@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { login as apiLogin } from '../api/client'
+import { useState, useCallback, useEffect } from 'react'
+import { login as apiLogin, checkAuth } from '../api/client'
 
 export interface AuthState {
   authenticated: boolean
@@ -10,20 +10,28 @@ export interface AuthState {
 }
 
 export function useAuth(): AuthState {
-  const [authenticated, setAuthenticated] = useState(() => {
-    return document.cookie.includes('session=') || localStorage.getItem('auth_disabled') === 'true'
-  })
-  const [loading, setLoading] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // 초기 인증 상태 확인
+  useEffect(() => {
+    checkAuth()
+      .then((res) => {
+        setAuthenticated(res.authenticated)
+        if (res.auth_disabled) {
+          localStorage.setItem('auth_disabled', 'true')
+        }
+      })
+      .catch(() => setAuthenticated(false))
+      .finally(() => setLoading(false))
+  }, [])
 
   const login = useCallback(async (password: string) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await apiLogin(password)
-      if (res.data.message === 'auth disabled') {
-        localStorage.setItem('auth_disabled', 'true')
-      }
+      await apiLogin(password)
       setAuthenticated(true)
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Login failed'

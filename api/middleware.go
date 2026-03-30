@@ -95,6 +95,30 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 
+func (s *Server) handleAuthCheck(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Web.PasswordHash == "" {
+		writeJSON(w, map[string]interface{}{"authenticated": true, "auth_disabled": true})
+		return
+	}
+
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		writeJSON(w, map[string]interface{}{"authenticated": false})
+		return
+	}
+
+	s.sessMu.RLock()
+	expiry, ok := s.sessions[cookie.Value]
+	s.sessMu.RUnlock()
+
+	if !ok || time.Now().After(expiry) {
+		writeJSON(w, map[string]interface{}{"authenticated": false})
+		return
+	}
+
+	writeJSON(w, map[string]interface{}{"authenticated": true})
+}
+
 func generateToken() string {
 	b := make([]byte, 32)
 	rand.Read(b)

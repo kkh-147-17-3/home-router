@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, Input, Button, Alert, Typography } from 'antd'
+import { Card, Input, Button, Alert, Typography, Spin } from 'antd'
 import { LockOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import type { AuthState } from '../hooks/useAuth'
@@ -12,10 +12,9 @@ export default function LoginPage({ auth }: { auth: AuthState }) {
     if (auth.authenticated) navigate('/dashboard', { replace: true })
   }, [auth.authenticated, navigate])
 
-  // 인증 비활성화 상태 체크
-  useEffect(() => {
-    auth.login('').catch(() => {})
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  if (auth.loading) {
+    return <div className="flex items-center justify-center min-h-screen"><Spin size="large" /></div>
+  }
 
   const handleSubmit = async () => {
     try {

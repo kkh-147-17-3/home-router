@@ -12,7 +12,7 @@ const api = axios.create({ baseURL: '/api' })
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 && !err.config?.url?.startsWith('/auth/')) {
       window.location.href = '/login'
     }
     return Promise.reject(err)
@@ -22,6 +22,9 @@ api.interceptors.response.use(
 // Auth
 export const login = (password: string) =>
   api.post('/auth/login', { password })
+
+export const checkAuth = () =>
+  api.get<{ authenticated: boolean; auth_disabled?: boolean }>('/auth/check').then(r => r.data)
 
 // Dashboard
 export const getDashboard = () =>
