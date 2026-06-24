@@ -2,3 +2,4 @@
 home-router
 web/node_modules/
 web/dist/
+config.yml
