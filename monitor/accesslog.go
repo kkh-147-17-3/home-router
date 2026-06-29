@@ -16,6 +16,9 @@ type AccessEntry struct {
 	DestPort    int       `json:"destPort"`
 	PortName    string    `json:"portName,omitempty"`
 	Protocol    string    `json:"protocol"`
+	Host        string    `json:"host,omitempty"`     // TLS SNI 또는 HTTP Host 헤더 (목적지 도메인)
+	URL         string    `json:"url,omitempty"`      // 평문 HTTP 요청 경로 (METHOD path)
+	ViaProxy    string    `json:"viaProxy,omitempty"` // 프록시 경유 시 엣지 IP (예: Cloudflare). SourceIP는 원본 클라이언트
 	Action      string    `json:"action"`
 	Reason      string    `json:"reason"`
 }

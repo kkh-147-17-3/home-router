@@ -64,6 +64,9 @@ type Config struct {
 	Monitor struct {
 		Enabled bool `yaml:"enabled"`
 		LogSize int  `yaml:"log_size"`
+		// DeepInspect: 포워딩된 서비스로 들어오는 인바운드 요청의 애플리케이션 계층
+		// 정보(TLS SNI / HTTP Host·URL)를 NFLOG로 캡처해 access log에 기록.
+		DeepInspect bool `yaml:"deep_inspect"`
 	} `yaml:"monitor"`
 
 	configPath string     `yaml:"-"`

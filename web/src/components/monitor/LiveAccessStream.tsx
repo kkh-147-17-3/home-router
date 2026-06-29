@@ -25,17 +25,21 @@ export default function LiveAccessStream() {
       title: 'Time',
       dataIndex: 'timestamp',
       key: 'time',
-      width: 160,
-      render: (v: string) => new Date(v).toLocaleString(),
+      width: 190,
+      render: (v: string) => (
+        <span style={{ whiteSpace: 'nowrap' }}>{new Date(v).toLocaleString()}</span>
+      ),
     },
     {
       title: 'Source',
       key: 'src',
+      width: 200,
       render: (_: unknown, r: AccessEntry) => (
         <div>
           <span>{r.sourceIp}</span>
           <CountryFlag code={r.countryCode} country={r.country} />
           {r.org && <div className="text-xs text-gray-400">{r.org}</div>}
+          {r.viaProxy && <div className="text-xs text-blue-400">via {r.viaProxy}</div>}
         </div>
       ),
     },
@@ -51,6 +55,19 @@ export default function LiveAccessStream() {
       ),
     },
     {
+      title: 'Request (Host / URL)',
+      key: 'request',
+      render: (_: unknown, r: AccessEntry) => {
+        if (!r.host && !r.url) return <span className="text-gray-300">-</span>
+        return (
+          <div>
+            {r.host && <span className="font-medium">{r.host}</span>}
+            {r.url && <div className="text-xs text-gray-400 break-all">{r.url}</div>}
+          </div>
+        )
+      },
+    },
+    {
       title: 'Protocol',
       dataIndex: 'protocol',
       key: 'proto',
@@ -63,7 +80,7 @@ export default function LiveAccessStream() {
       key: 'action',
       width: 80,
       render: (v: string) => (
-        <Tag color={v === 'DROP' ? 'red' : v === 'ACCEPT' ? 'green' : 'default'}>
+        <Tag color={v === 'DROP' ? 'red' : v === 'ACCEPT' ? 'green' : v === 'FORWARD' ? 'blue' : 'default'}>
           {v}
         </Tag>
       ),

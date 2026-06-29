@@ -58,6 +58,11 @@ func main() {
 		log.Fatalf("WAN 인터페이스를 찾을 수 없습니다: %v", err)
 	}
 
+	// WAN 링크 활성화 (DHCP 클라이언트가 DISCOVER 송신하려면 link UP 필요)
+	if err := network.LinkUp(wanIface); err != nil {
+		log.Fatalf("WAN 인터페이스 활성화에 실패했습니다: %v", err)
+	}
+
 	// 3. NAT 활성화
 	log.Printf("[3/7] NAT 활성화 중 (인터페이스: %s)...", wanIface.Attrs().Name)
 	err = nat.Enable(wanIface.Attrs().Name, lanIface.Attrs().Name)
@@ -164,6 +169,20 @@ func main() {
 	if cfg.Monitor.Enabled {
 		monitor.NewWatcher(ctx, wanIface.Attrs().Name, accessLog, geoCache)
 		log.Println("[Monitor] WAN 접근 모니터링 시작")
+	}
+
+	// 포워딩된 서비스로 들어오는 인바운드 요청의 애플리케이션 계층(SNI/HTTP Host·URL) 캡처
+	if cfg.Monitor.DeepInspect {
+		var targets []monitor.CaptureTarget
+		for _, pf := range cfg.PortForwarding {
+			targets = append(targets, monitor.CaptureTarget{
+				InternalIP:   pf.InternalIP,
+				InternalPort: pf.InternalPort,
+				Protocol:     pf.Protocol,
+			})
+		}
+		monitor.NewCapture(ctx, wanIface.Attrs().Name, targets, accessLog, geoCache)
+		log.Printf("[Monitor] 인바운드 요청 심층 검사 시작 (대상: %d개 포트포워딩)", len(targets))
 	}
 
 	// 6. Web UI 서버 시작

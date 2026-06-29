@@ -140,6 +140,9 @@ export interface AccessEntry {
   destPort: number
   portName?: string
   protocol: string
+  host?: string
+  url?: string
+  viaProxy?: string
   action: string
   reason: string
 }

@@ -44,6 +44,11 @@ func SetIP(mac string, cidr string) error {
 	return netlink.LinkSetUp(link)
 }
 
+// LinkUp brings the given interface up (e.g. so a DHCP client can send DISCOVER).
+func LinkUp(link netlink.Link) error {
+	return netlink.LinkSetUp(link)
+}
+
 func SetDefaultRoute(mac string, gateway net.IP) error {
 	link, err := iface.FindInterfaceByMac(mac)
 	if err != nil {
